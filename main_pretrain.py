@@ -50,6 +50,7 @@ def get_args_parser():
 
     parser.add_argument('--input-size', default=224, type=int,
                         help='images input size')
+    parser.add_argument('--patch-size', type=int)
 
     parser.add_argument('--mask-ratio', default=0.75, type=float,
                         help='Masking ratio (percentage of removed patches).')
@@ -150,6 +151,7 @@ def main(args):
     model = models_mae.__dict__[args.model](
         img_size=config.dataset.input_size,
         in_chans=config.dataset.input_channels,
+        patch_size=config.patches.size,
         norm_pix_loss=args.norm_pix_loss,
     )
 

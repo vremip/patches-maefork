@@ -12,8 +12,14 @@ class Datasetconfig:
 
 
 @dataclass
+class PatchesConfig:
+  size: int = 16
+
+
+@dataclass
 class Config:
   dataset = Datasetconfig()
+  patches = PatchesConfig()
   device: torch.device = "cpu"
 
 
@@ -30,4 +36,7 @@ def build_config(args: Namespace):
       config.dataset.input_size = 28
       config.dataset.input_channels = 1
   
+  if getattr(args, "patch_size"):
+    config.patches.size = args.patch_size
+
   return config
