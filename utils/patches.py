@@ -114,7 +114,7 @@ class PatchExtractor:
 
     return x_pos, y_pos, scale
 
-  def __call__(
+  def forward(
     self,
     inputs: torch.Tensor,
     x_pos: torch.Tensor = None,
@@ -184,3 +184,14 @@ class PatchExtractor:
       scale=scale,
       precision=precision,
     )
+
+
+def select_patches(patches_info, num_patches):
+  """Select num_patches patches from dict containing all extracted patches"""
+  return dict(
+    patches=patches_info["patches"][:, :num_patches],
+    x_pos=patches_info["x_pos"][:, :num_patches],
+    y_pos=patches_info["y_pos"][:, :num_patches],
+    scale=patches_info["scale"][:, :num_patches],
+    precision=patches_info["precision"][:, :num_patches],
+  )
