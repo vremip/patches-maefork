@@ -1,7 +1,7 @@
 
 
 from functools import partial
-from typing import Any, Callable, List, Optional
+from typing import Any, Callable, List, Optional, Tuple
 import torch
 import torch.nn as nn
 
@@ -23,31 +23,34 @@ class Encoder(nn.Module):
     dtype: Dtype of activations.
   """
 
-  num_layers: int
-  mlp_dim: int
-  num_heads: int
-  hidden_size: int
-  num_patches: int
-  img_dims: list[int]
-  patches_size: list[int]
-  classifier: str = "token"
-  dropout_rate: float = 0.1
-  attention_dropout_rate: float = 0.1
-  stochastic_depth: float = 0.0
-  dtype: Any = torch.float32
-  locscale_token: bool = True
-  num_labels: int = 1
-  normalizer: str = "softmax"
-
-  def setup(self):
-    fh, fw = self.patches_size
+  def __init__(
+    self,
+    num_layers: int,
+    mlp_dim: int,
+    num_heads: int,
+    hidden_size: int,
+    num_patches: int,
+    img_dims: Tuple[int, int],
+    patches_size: Tuple[int, int],
+    classifier: str = "token",
+    dropout_rate: float = 0.1,
+    attention_dropout_rate: float = 0.1,
+    stochastic_depth: float = 0.0,
+    dtype: Any = torch.float32,
+    locscale_token: bool = True,
+    num_labels: int = 1,
+    normalizer: str = "softmax",
+  ):
     # Embedding patches is in fact a single convolution.
-    self.conv_embedding = nn.Conv(
-      self.hidden_size,
-      (1, fh, fw),
-      strides=(1, fh, fw),
-      padding="VALID",
-      name="Conv_Embedding",
+    fh, fw = patches_size
+    assert fh == fw
+
+    self.conv_embedding = nn.Conv2d(
+      99,  # in_channels, TODO
+      hidden_size,
+      fh,
+      stride=fh,
+      padding=0,
     )
 
   def forward(
@@ -62,7 +65,6 @@ class Encoder(nn.Module):
     patches_info contains the loc/scale of the patches, if not passed, assumes a grid.
     Coordinates belong to [-1, 1]
     """
-    dtype = jax.dtypes.canonicalize_dtype(self.dtype)
     if patches_info:
       # Embed the patches using the conv
       x = self.conv_embedding(patches_info["patches"])
@@ -70,7 +72,7 @@ class Encoder(nn.Module):
       # Shape is either `[batch size, num masks, 1, 1, emb]` or `[batch size, 1, h, w, emb]`
       assert x.ndim == 5
       n = x.shape[0]
-      x = jnp.reshape(x, [n, -1, self.hidden_size])
+      x = torch.reshape(x, [n, -1, self.hidden_size])
 
       # Shape stays the same
       x = AddPositionEmbs(
@@ -85,7 +87,7 @@ class Encoder(nn.Module):
       # For autoreg. No patches yet. Just do an "empty" pass to get the locscale of the first patches to extract
       assert batch_size
       n = batch_size
-      x = jnp.zeros((n, 0, self.hidden_size))
+      x = torch.zeros((n, 0, self.hidden_size))
 
     # Adding the token containing patches information.
     if self.locscale_token:
@@ -124,7 +126,6 @@ class Encoder(nn.Module):
         dropout_rate=self.dropout_rate,
         attention_dropout_rate=self.attention_dropout_rate,
         stochastic_depth=(lyr / max(self.num_layers - 1, 1)) * self.stochastic_depth,
-        name=f"encoderblock_{lyr}",
         dtype=dtype,
         normalizer=self.normalizer,
       )(x, deterministic=not train, extra_keys=_extra_keys)
@@ -220,7 +221,6 @@ class Encoder1DBlockWithFixedTokens(Encoder1DBlock):
   def __init__(self, *args, **kwargs):
     self.layer_norm_kv = nn.LayerNorm(dtype=kwargs.get('dtype'))
     super().__(*args, **kwargs)
-    
 
   def forward(
     self, inputs: torch.Tensor, extra_keys: torch.Tensor = None
