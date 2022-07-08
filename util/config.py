@@ -3,17 +3,29 @@ from dataclasses import dataclass
 
 import torch
 
+from ..helpers.enums import SimpleEnum
+
+
+class Enums:
+  class InitPatches(SimpleEnum):
+    exhaustive: str
+    random: str  # patches placed at random locations
+    random_cover: str
+    grid_conv: str  # exhaustive grid, a la ViT
+    grid_mod: str
+
 
 @dataclass
 class Datasetconfig:
   name: str = "imagenet"
-  input_size: int = 224
+  input_size: int = 224  # number of pixels for width and height
   input_channels: int = 3
 
 
 @dataclass
 class PatchesConfig:
   size: int = 16
+  init_type: str = Enums.InitPatches.random
 
 
 @dataclass
