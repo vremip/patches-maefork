@@ -18,8 +18,8 @@ import torch
 from timm.data import Mixup
 from timm.utils import accuracy
 
-import util.misc as misc
-import util.lr_sched as lr_sched
+import utils.misc as misc
+from utils.learning_rate import adjust_learning_rate
 
 
 def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
@@ -44,7 +44,7 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
 
         # we use a per iteration (instead of per epoch) lr scheduler
         if data_iter_step % accum_iter == 0:
-            lr_sched.adjust_learning_rate(optimizer, data_iter_step / len(data_loader) + epoch, args)
+            adjust_learning_rate(optimizer, data_iter_step / len(data_loader) + epoch, args)
 
         samples = samples.to(device, non_blocking=True)
         targets = targets.to(device, non_blocking=True)

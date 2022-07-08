@@ -28,11 +28,11 @@ import timm
 assert timm.__version__ == "0.3.2" # version check
 from timm.models.layers import trunc_normal_
 
-import util.misc as misc
-from util.pos_embed import interpolate_pos_embed
-from util.misc import NativeScalerWithGradNormCount as NativeScaler
-from util.lars import LARS
-from util.crop import RandomResizedCrop
+import utils.misc as misc
+from utils.pos_embed import interpolate_pos_embed
+from utils.misc import NativeScalerWithGradNormCount as NativeScaler
+from utils.learning_rate import LARS
+from datasets.crop import RandomResizedCrop
 
 import models.models_vit as models_vit
 

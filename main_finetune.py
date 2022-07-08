@@ -28,11 +28,12 @@ from timm.models.layers import trunc_normal_
 from timm.data.mixup import Mixup
 from timm.loss import LabelSmoothingCrossEntropy, SoftTargetCrossEntropy
 
-import util.lr_decay as lrd
-import util.misc as misc
-from util.datasets import build_dataset
-from util.pos_embed import interpolate_pos_embed
-from util.misc import NativeScalerWithGradNormCount as NativeScaler
+
+import utils.misc as misc
+from datasets.datasets import build_dataset
+from utils.learning_rate import param_groups_lrd
+from utils.misc import NativeScalerWithGradNormCount as NativeScaler
+from utils.pos_embed import interpolate_pos_embed
 
 import models.models_vit as models_vit
 
@@ -280,7 +281,7 @@ def main(args):
         model_without_ddp = model.module
 
     # build optimizer with layer-wise lr decay (lrd)
-    param_groups = lrd.param_groups_lrd(model_without_ddp, args.weight_decay,
+    param_groups = param_groups_lrd(model_without_ddp, args.weight_decay,
         no_weight_decay_list=model_without_ddp.no_weight_decay(),
         layer_decay=args.layer_decay
     )

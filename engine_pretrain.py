@@ -14,8 +14,8 @@ from typing import Iterable
 
 import torch
 
-import util.misc as misc
-import util.lr_sched as lr_sched
+import utils.misc as misc
+from utils.learning_rate import adjust_learning_rate
 
 
 def train_one_epoch(model: torch.nn.Module,
@@ -40,7 +40,7 @@ def train_one_epoch(model: torch.nn.Module,
 
         # we use a per iteration (instead of per epoch) lr scheduler
         if data_iter_step % accum_iter == 0:
-            lr_sched.adjust_learning_rate(optimizer, data_iter_step / len(data_loader) + epoch, args)
+            adjust_learning_rate(optimizer, data_iter_step / len(data_loader) + epoch, args)
 
         samples = samples.to(device, non_blocking=True)
 

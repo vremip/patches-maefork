@@ -21,15 +21,15 @@ import torch.backends.cudnn as cudnn
 from torch.utils.tensorboard import SummaryWriter
 
 import timm
-from util.config import build_config
+from utils.config import build_config
 
-from util.datasets import build_dataset
+from datasets.datasets import build_dataset
 
 assert timm.__version__ == "0.3.2"  # version check
 import timm.optim.optim_factory as optim_factory
 
-import util.misc as misc
-from util.misc import NativeScalerWithGradNormCount as NativeScaler
+import utils.misc as misc
+from utils.misc import NativeScalerWithGradNormCount as NativeScaler
 
 import models.models_mae as models_mae
 

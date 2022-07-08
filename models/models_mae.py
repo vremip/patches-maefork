@@ -17,7 +17,7 @@ import torch.nn as nn
 
 from timm.models.vision_transformer import PatchEmbed, Block
 
-from util.pos_embed import get_2d_sincos_pos_embed
+from utils.pos_embed import get_2d_sincos_pos_embed
 
 
 class MaskedAutoencoderViT(nn.Module):
@@ -151,7 +151,6 @@ class MaskedAutoencoderViT(nn.Module):
 
     def forward_encoder(self, x, mask_ratio):
         # embed patches
-        breakpoint()
         x = self.patch_embed(x)
 
         # add pos embed w/o cls token
