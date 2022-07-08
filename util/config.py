@@ -3,7 +3,7 @@ from dataclasses import dataclass
 
 import torch
 
-from ..helpers.enums import SimpleEnum
+from helpers.enums import SimpleEnum
 
 
 class Enums:

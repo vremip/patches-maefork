@@ -17,7 +17,6 @@ class PatchExtractor:
     """
     return (0.5 + torch.arange(0, num_points)) / num_points * 2. - 1.
 
-
   def __init__(
     self,
     config: Config,
