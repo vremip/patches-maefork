@@ -148,72 +148,68 @@ class Encoder1DBlock(nn.Module):
     output after transformer encoder block.
   """
 
-  mlp_dim: int
-  num_heads: int
-  dtype: Any = torch.float32
-  dropout_rate: float = 0.1
-  attention_dropout_rate: float = 0.1
-  stochastic_depth: float = 0.0
-  normalizer: str = "softmax"
+  def __init__(
+    self,
+    mlp_dim: int,
+    num_heads: int,
+    dtype: Any = torch.float32,
+    dropout_rate: float = 0.1,
+    attention_dropout_rate: float = 0.1,
+    stochastic_depth: float = 0.0,
+    normalizer: str = "softmax",
+  ):
+    self.stochastic_depth = stochastic_depth
 
-  def get_stochastic_depth_mask(
-    self, x: torch.Tensor, deterministic: bool
-  ) -> torch.Tensor:
-    """Generate the stochastic depth mask in order to apply layer-drop.
-
-    Args:
-      x: Input tensor.
-      deterministic: Weather we are in the deterministic mode (e.g inference
-        time) or not.
-
-    Returns:
-      Stochastic depth mask.
-    """
-    if not deterministic and self.stochastic_depth:
-      shape = (x.shape[0],) + (1,) * (x.ndim - 1)
-      return jax.random.bernoulli(
-        self.make_rng("dropout"), self.stochastic_depth, shape
+    # Attention block
+    self.layer_norm1 = nn.LayerNorm(dtype=dtype)
+    self.multi_head_dot_prod_attn = MultiHeadDotProductAttention(
+        num_heads=num_heads,
+        dtype=dtype,
+        kernel_init=nn.initializers.xavier_uniform(),  # TODO
+        broadcast_dropout=False,
+        dropout_rate=attention_dropout_rate,
+        normalizer=normalizer,
       )
+    self.dropout = nn.Dropout(dropout_rate)
+
+    # MLP block
+    self.layer_norm2 = nn.LayerNorm(dtype=dtype)
+    self.mlp_block = AttentionLayers.MlpBlock(
+      mlp_dim=mlp_dim,
+      dtype=dtype,
+      dropout_rate=dropout_rate,
+    )
+
+  def get_stochastic_depth_mask(self, x: torch.Tensor) -> torch.Tensor:
+    """Generate the stochastic depth mask in order to apply layer-drop.
+    """
+    if self.training and self.stochastic_depth:
+      shape = (x.shape[0],) + (1,) * (x.ndim - 1)
+      return torch.rand(shape) < self.stochastic_depth
     else:
       return 0.0
 
-  def forward(self, inputs: torch.Tensor, deterministic: bool) -> torch.Tensor:
+  def forward(self, inputs: torch.Tensor) -> torch.Tensor:
     """Applies Encoder1DBlock module.
 
     Args:
       inputs: Input data.
-      deterministic: Deterministic or not (to apply dropout).
 
     Returns:
       Output after transformer encoder block.
     """
-    # Attention block.
     assert inputs.ndim == 3
-    x = nn.LayerNorm(dtype=self.dtype)(inputs)
-    x = MultiHeadDotProductAttention(
-      num_heads=self.num_heads,
-      dtype=self.dtype,
-      kernel_init=nn.initializers.xavier_uniform(),
-      broadcast_dropout=False,
-      deterministic=deterministic,
-      dropout_rate=self.attention_dropout_rate,
-      normalizer=self.normalizer,
-    )(x, x)
-    x = nn.Dropout(rate=self.dropout_rate)(x, deterministic)
-    x = x * (1.0 - self.get_stochastic_depth_mask(x, deterministic)) + inputs
+
+    # Attention block.    
+    x = self.layer_norm1(inputs)
+    x = self.multi_head_dot_prod_attn(x, x)
+    x = self.dropout(x)
+    x = x * (1.0 - self.get_stochastic_depth_mask(x)) + inputs
 
     # MLP block.
-    y = nn.LayerNorm(dtype=self.dtype)(x)
-    y = AttentionLayers.MlpBlock(
-      mlp_dim=self.mlp_dim,
-      dtype=self.dtype,
-      dropout_rate=self.dropout_rate,
-      activation_fn=nn.gelu,
-      kernel_init=nn.initializers.xavier_uniform(),
-      bias_init=nn.initializers.normal(stddev=1e-6),
-    )(y, deterministic=deterministic)
-
-    return y * (1.0 - self.get_stochastic_depth_mask(x, deterministic)) + x
+    y = self.layer_norm2(x)
+    y = self.mlp_block(y)
+    return y * (1.0 - self.get_stochastic_depth_mask(x)) + x
 
 
 class Encoder1DBlockWithFixedTokens(Encoder1DBlock):
@@ -221,90 +217,69 @@ class Encoder1DBlockWithFixedTokens(Encoder1DBlock):
   If prev_columns is passed, consider them as extra keys to attend to as well.
   """
 
-  @nn.compact
-  def __call__(
-    self, inputs: torch.Tensor, deterministic: bool, extra_keys: torch.Tensor = None
+  def __init__(self, *args, **kwargs):
+    self.layer_norm_kv = nn.LayerNorm(dtype=kwargs.get('dtype'))
+    super().__(*args, **kwargs)
+    
+
+  def forward(
+    self, inputs: torch.Tensor, extra_keys: torch.Tensor = None
   ) -> torch.Tensor:
-    """Applies Encoder1DBlock module.
-
-    Args:
-      inputs: Input data.
-      deterministic: Deterministic or not (to apply dropout).
-
-    Returns:
-      Output after transformer encoder block.
-    """
-    # Attention block.
     assert inputs.ndim == 3
-    x = nn.LayerNorm(dtype=self.dtype)(inputs)
+
+    # Attention block.
+    x = self.layer_norm1(inputs)
+
     if extra_keys is not None:
-      kv = nn.LayerNorm(dtype=self.dtype)(extra_keys)
-      kv = jnp.concatenate((x, kv), axis=1)
+      kv = self.layer_norm_kv(extra_keys)
+      kv = torch.cat((x, kv), dim=1)
     else:
       kv = x
-    x = MultiHeadDotProductAttention(
-      num_heads=self.num_heads,
-      dtype=self.dtype,
-      kernel_init=nn.initializers.xavier_uniform(),
-      broadcast_dropout=False,
-      deterministic=deterministic,
-      dropout_rate=self.attention_dropout_rate,
-      normalizer=self.normalizer,
-    )(x, kv)
-    x = nn.Dropout(rate=self.dropout_rate)(x, deterministic)
-    x = x * (1.0 - self.get_stochastic_depth_mask(x, deterministic)) + inputs
+
+    x = self.multi_head_dot_prod_attn(x, kv)
+    x = self.dropout(x)
+    x = x * (1.0 - self.get_stochastic_depth_mask(x)) + inputs
 
     # MLP block.
-    y = nn.LayerNorm(dtype=self.dtype)(x)
-    y = AttentionLayers.MlpBlock(
-      mlp_dim=self.mlp_dim,
-      dtype=self.dtype,
-      dropout_rate=self.dropout_rate,
-      activation_fn=nn.gelu,
-      kernel_init=nn.initializers.xavier_uniform(),
-      bias_init=nn.initializers.normal(stddev=1e-6),
-    )(y, deterministic=deterministic)
-
-    return y * (1.0 - self.get_stochastic_depth_mask(x, deterministic)) + x
+    y = self.layer_norm2(x)
+    y = self.mlp_block(y)
+    return y * (1.0 - self.get_stochastic_depth_mask(x)) + x
 
 
 class AttentionLayers:
   class MlpBlock(nn.Module):
     """Transformer MLP / feed-forward block."""
 
-    mlp_dim: int
-    out_dim: Optional[int] = None
-    dropout_rate: float = 0.1
-    use_bias: bool = True
-    kernel_init: Initializer = nn.initializers.xavier_uniform()
-    bias_init: Initializer = nn.initializers.normal(stddev=1e-6)
-    activation_fn: Callable[[torch.Tensor], torch.Tensor] = nn.gelu
-    precision: Optional[jax.lax.Precision] = None
-    dtype: torch.Tensor = torch.float32
+    def __init__(
+      self,
+      mlp_dim: int,
+      out_dim: Optional[int] = None,
+      dropout_rate: float = 0.1,
+      activation_fn: Callable[[torch.Tensor], torch.Tensor] = None,
+      dtype: torch.Tensor = torch.float32,
+    ):
+      out_dim = out_dim or 1   # TODO
+      
+      self.linear1 = nn.Linear(1, mlp_dim, dtype=dtype)
+      self.linear2 = nn.Linear(mlp_dim, out_dim, dtype=dtype)
+      self.layers = nn.Sequential(
+        self.linear1,
+        activation_fn or nn.GELU,
+        nn.Dropout(dropout_rate),
+        self.linear2,
+        nn.Dropout(dropout_rate),
+      )
+      self.initialize()
+  
+    def initialize(self):
+      torch.nn.init.xavier_uniform_(self.linear1.weight)
+      torch.nn.init.xavier_uniform_(self.linear2.weight)
+      torch.nn.init.normal_(self.linear1.bias, std=1e-6)
+      torch.nn.init.normal_(self.linear2.bias, std=1e-6)
 
-    def forward(self, inputs: torch.Tensor, *, deterministic: bool):
+    def forward(self, inputs: torch.Tensor):
       """Applies Transformer MlpBlock module."""
-      actual_out_dim = inputs.shape[-1] if self.out_dim is None else self.out_dim
-      x = nn.Dense(
-        self.mlp_dim,
-        dtype=self.dtype,
-        use_bias=self.use_bias,
-        kernel_init=self.kernel_init,
-        bias_init=self.bias_init,
-        precision=self.precision,
-      )(inputs)
-      x = self.activation_fn(x)
-      x = nn.Dropout(rate=self.dropout_rate)(x, deterministic=deterministic)
-      output = nn.Dense(
-        actual_out_dim,
-        dtype=self.dtype,
-        use_bias=self.use_bias,
-        kernel_init=self.kernel_init,
-        bias_init=self.bias_init,
-        precision=self.precision,
-      )(x)
-      output = nn.Dropout(rate=self.dropout_rate)(output, deterministic=deterministic)
-      return output
+      return self.layers(inputs)
 
 
 class AddPositionEmbs(nn.Module):

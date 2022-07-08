@@ -429,7 +429,7 @@ class PredictorFromLocScale(nn.Module):
       nn.ReLU(),
       nn.Linear(hidden_size, num_classes),
     )
-    torch.nn.init.xavier_normal_(self.layers)
+    torch.nn.init.xavier_uniform_(self.layers)
 
   def forward(self, loc_scale: torch.Tensor) -> torch.Tensor:
     """
