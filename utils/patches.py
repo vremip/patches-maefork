@@ -1,6 +1,6 @@
 import torch
 
-from .config import Config, Enums
+from config import Config, Enums
 
 
 class PatchExtractor:

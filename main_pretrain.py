@@ -21,7 +21,7 @@ import torch.backends.cudnn as cudnn
 from torch.utils.tensorboard import SummaryWriter
 
 import timm
-from utils.config import build_config
+from config import build_config
 
 from datasets.datasets import build_dataset
 
@@ -38,6 +38,7 @@ from engine_pretrain import train_one_epoch
 
 def get_args_parser():
     parser = argparse.ArgumentParser('MAE pre-training', add_help=False)
+    parser.add_argument('-c', 'config', default="default", type=str)
     parser.add_argument('--batch-size', default=64, type=int,
                         help='Batch size per GPU (effective batch size is batch_size * accum_iter * # gpus')
     parser.add_argument('--epochs', default=400, type=int)

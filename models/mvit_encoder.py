@@ -1,5 +1,3 @@
-
-
 from functools import partial
 from typing import Any, Callable, Dict, Optional, Tuple
 import torch
@@ -49,7 +47,7 @@ class Encoder(nn.Module):
     self.num_layers = num_layers
 
     self.conv_embedding = nn.Conv2d(
-      99,  # in_channels, TODO
+      7,  # in_channels, TODO
       hidden_size,
       fh,
       stride=fh,

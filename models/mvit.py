@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 
 from .mvit_encoder import Encoder
-from utils.config import PatchesConfig
+from config import Config, Enums, PatchesConfig
 from utils.patches import PatchExtractor, select_patches
 
 
@@ -28,41 +28,44 @@ class MViT(nn.Module):
   dtype: JAX data type for activations.
   """
 
-  num_classes: int
-  mlp_dim: int
-  num_layers: int
-  num_heads: int
-  patches: PatchesConfig
-  hidden_size: int
-  img_dims: list
-  num_patches_init: int
-  num_patches: int
-  min_num_patches: int = None
-  representation_size: Optional[int] = None
-  dropout_rate: float = 0.1
-  attention_dropout_rate: float = 0.1
-  stochastic_depth: float = 0.0
-  classifier_type: str = "gap"
-  dtype: Any = torch.float32
-  run_time: float = 0.0
-  init_patches: str = "random"
-  single_pass: bool = False
-  max_scale_mult: float = 1.0
-  num_labels: int = 1
-  per_patch_token: bool = False
-  stochastic: float = None
-  normalizer: str = "softmax"
-  noise_type: int = 0
-  patch_transform: bool = True
-  autoreg_passes: int = 0
-  noise_level: float = 0
-  epsilon: float = 0.0
-  learn_scale: bool = False
-  use_first_pass: bool = False
+  def __init__(
+    self,
+    config: Config,
+    num_classes: int,
+    mlp_dim: int,
+    num_layers: int,
+    num_heads: int,
+    patches: PatchesConfig,
+    hidden_size: int,
+    img_dims: list,
+    num_patches_init: int,
+    num_patches: int,
+    min_num_patches: int = None,
+    representation_size: Optional[int] = None,
+    dropout_rate: float = 0.1,
+    attention_dropout_rate: float = 0.1,
+    stochastic_depth: float = 0.0,
+    classifier_type: str = "gap",
+    dtype: Any = torch.float32,
+    run_time: float = 0.0,
+    single_pass: bool = False,
+    max_scale_mult: float = 1.0,
+    num_labels: int = 1,
+    per_patch_token: bool = False,
+    stochastic: float = None,
+    normalizer: str = "softmax",
+    noise_type: int = 0,
+    patch_transform: bool = True,
+    autoreg_passes: int = 0,
+    noise_level: float = 0,
+    epsilon: float = 0.0,
+    learn_scale: bool = False,
+    use_first_pass: bool = False,
+  ):
+    self.config = config
 
-  def setup(self):
     fh, fw = self.patches.size
-    if self.init_patches == "random":
+    if config.patches.init_type == Enums.InitPatches.random:
       h = w = 1
     else:
       h = self.img_dims[0] // fh
@@ -80,7 +83,6 @@ class MViT(nn.Module):
       classifier=self.classifier_type,
       dtype=self.dtype,
       hidden_size=self.hidden_size,
-      name="Transformer",
       locscale_token=not self.single_pass,
       num_labels=self.num_labels,
       normalizer=self.normalizer,
@@ -116,22 +118,20 @@ class MViT(nn.Module):
     # If grid_conv: split the image into an exhaustive grid.
     if num_patches is None:
       num_patches = self.num_patches_init
-    if self.init_patches in ["random", "grid_mod", "random_cover"]:
+    if self.config.patches.init_type in (Enums.InitPatches.random, Enums.InitPatches.grid_mod, Enums.InitPatches.random_cover):
       return PatchExtractor(
-        rng=self.make_rng("patch_extractor"),
+        config=self.config,
         num_patches=num_patches,
-        img_dims=self.img_dims,
-        patches=self.patches,
-        type_init_patches=self.init_patches,
         max_scale_mult=self.max_scale_mult,
       )(inputs)
     # Standard exhaustive grid with strided convs.
     # The strided conv will act as a patch extractor + "embedder"
-    elif self.init_patches == "grid_conv":
+    elif self.config.patches.init_type == Enums.InitPatches.grid_conv:
       return dict(patches=torch.unsqueeze(inputs, 1))
     else:
       raise NotImplementedError(
-        f'Did not recognize init_patches value. Got "{self.init_patches}", expected one of "random", "grid_conv" or "grid_mod"'
+        f'Did not recognize init_patches value. Got "{self.config.patches.init_type}", '
+        'expected one of "random", "random_cover", "grid_conv" or "grid_mod"'
       )
 
   def _get_locscale_embeds(self, embeds: torch.Tensor, extract: bool = True):
@@ -336,9 +336,7 @@ class MViT(nn.Module):
     # Try to predict class from loc scale information if single label prediction
     if self.num_labels == 1:
       locscale = torch.reshape(locscale, (locscale.shape[0], -1))
-      locscale_logits = PredictorFromLocScale(
-        num_classes=self.num_classes, name="Locscale_Classifier"
-      )(locscale)
+      locscale_logits = PredictorFromLocScale(num_classes=self.num_classes)(locscale)
     else:
       # Could be adapted to multi label
       locscale_logits = torch.zeros_like(first_logits)
