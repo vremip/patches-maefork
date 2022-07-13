@@ -1,6 +1,7 @@
 
 
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from functools import partial
+from typing import Any, Callable, Dict, Optional, Tuple
 import torch
 import torch.nn as nn
 
@@ -433,8 +434,19 @@ class MultiHeadDotProductAttention(nn.Module):
     nn.init.xavier_uniform_(self.linear_key)
     nn.init.xavier_uniform_(self.linear_value)
 
-    self.dot_product_attention = dot_product_attention
+    self.dot_product_attention = partial(
+      dot_product_attention,
+      dropout_rate=dropout_rate,
+      broadcast_dropout=broadcast_dropout,
+      dtype=dtype,
+      normalizer=normalizer,
+    )
 
+    self.linear_out = nn.Linear(1, features, bias=use_bias)
+    nn.init.xavier_uniform_(self.linear_out)
+    #DenseGeneral(
+    #  features=features,
+    #  axis=(-2, -1),
 
   def forward(
     self,
@@ -476,43 +488,26 @@ class MultiHeadDotProductAttention(nn.Module):
     #   ...
 
     # apply attention
-    x = self.attention_fn(
-      query,
-      key,
-      value,
+    x = self.dot_product_attention(
+      query=query,
+      key=key,
+      value=value,
       mask=mask,
-      dropout_rate=self.dropout_rate,
-      broadcast_dropout=self.broadcast_dropout,
-      dtype=self.dtype,
-      precision=self.precision,  # pytype: disable=wrong-keyword-args
-      normalizer=self.normalizer,
-    )  # pytype: disable=wrong-keyword-args
+    )
+
     # back to the original inputs dimensions
-    out = DenseGeneral(
-      features=features,
-      axis=(-2, -1),
-      kernel_init=self.kernel_init,
-      bias_init=self.bias_init,
-      use_bias=self.use_bias,
-      dtype=self.dtype,
-      precision=self.precision,
-      name="out",
-    )(x)
-    return out
+    return self.linear_out(x)
 
 
 def dot_product_attention(
-  query: torch.Tensor
-  key: Array,
-  value: Array,
-  bias: Optional[Array] = None,
-  mask: Optional[Array] = None,
+  query: torch.Tensor,
+  key: torch.Tensor,
+  value: torch.Tensor,
+  bias: Optional[torch.Tensor] = None,
+  mask: Optional[torch.Tensor] = None,
   broadcast_dropout: bool = True,
-  dropout_rng: Optional[PRNGKey] = None,
   dropout_rate: float = 0.0,
-  deterministic: bool = False,
-  dtype: Dtype = jnp.float32,
-  precision: Optional[lax.Precision] = None,
+  dtype = torch.float32,
   normalizer="softmax",
 ):
   """Computes dot-product attention given query, key, and value.
@@ -566,14 +561,111 @@ def dot_product_attention(
     bias,
     mask,
     broadcast_dropout,
-    dropout_rng,
     dropout_rate,
-    deterministic,
     dtype,
-    precision,
     normalizer=normalizer,
   )
 
   # return weighted sum over values for each query position
-  return jnp.einsum("...hqk,...khd->...qhd", attn_weights, value, precision=precision)
+  return torch.einsum("...hqk,...khd->...qhd", attn_weights, value)
 
+
+def dot_product_attention_weights(
+  query: torch.Tensor,
+  key: torch.Tensor,
+  bias: Optional[torch.Tensor] = None,
+  mask: Optional[torch.Tensor] = None,
+  broadcast_dropout: bool = True,
+  dropout_rate: float = 0.0,
+  dtype = torch.float32,
+  normalizer="softmax",
+):
+  """Computes dot-product attention weights given query and key.
+
+  Used by :func:`dot_product_attention`, which is what you'll most likely use.
+  But if you want access to the attention weights for introspection, then
+  you can directly call this function and call einsum yourself.
+
+  Args:
+    query: queries for calculating attention with shape of
+      `[batch..., q_length, num_heads, qk_depth_per_head]`.
+    key: keys for calculating attention with shape of
+      `[batch..., kv_length, num_heads, qk_depth_per_head]`.
+    bias: bias for the attention weights. This should be broadcastable to the
+      shape `[batch..., num_heads, q_length, kv_length]`.
+      This can be used for incorporating causal masks, padding masks,
+      proximity bias, etc.
+    mask: mask for the attention weights. This should be broadcastable to the
+      shape `[batch..., num_heads, q_length, kv_length]`.
+      This can be used for incorporating causal masks.
+      Attention weights are masked out if their corresponding mask value
+      is `False`.
+    broadcast_dropout: bool: use a broadcasted dropout along batch dims.
+    dropout_rng: JAX PRNGKey: to be used for dropout
+    dropout_rate: dropout rate
+    deterministic: bool, deterministic or not (to apply dropout)
+    dtype: the dtype of the computation (default: float32)
+    precision: numerical precision of the computation see `jax.lax.Precision`
+      for details.
+
+  Returns:
+    Output of shape `[batch..., num_heads, q_length, kv_length]`.
+  """
+  assert query.ndim == key.ndim, "q, k must have same rank."
+  assert query.shape[:-3] == key.shape[:-3], "q, k batch dims must match."
+  assert query.shape[-2] == key.shape[-2], "q, k num_heads must match."
+  assert query.shape[-1] == key.shape[-1], "q, k depths must match."
+
+  # calculate attention matrix
+  depth = query.shape[-1]
+  query = query / torch.sqrt(depth).type(dtype)
+  # attn weight shape is (batch..., num_heads, q_length, kv_length)
+  attn_weights = torch.einsum("...qhd,...khd->...hqk", query, key)
+
+  # apply attention bias: masking, dropout, proximity bias, etc.
+  if bias is not None:
+    attn_weights = attn_weights + bias
+
+  # apply attention mask
+  if mask is not None:
+    big_neg = torch.finfo(dtype).min
+    attn_weights = torch.where(mask, attn_weights, big_neg)
+
+  # normalize the attention weights
+  if normalizer.startswith("poly"):
+    power = float(normalizer.split("_")[-1])
+    attn_weights = poly_norm(attn_weights, power).type(dtype)
+  elif normalizer.startswith("temp"):
+    temp = float(normalizer.split("_")[-1])
+    attn_weights = torch.softmax(attn_weights / temp, dtype=dtype)
+  else:
+    attn_weights = torch.softmax(attn_weights, dtype=dtype)
+
+  # apply attention dropout
+  if dropout_rate:
+    keep_prob = 1.0 - dropout_rate
+    if broadcast_dropout:
+      # dropout is broadcast across the batch + head dimensions
+      dropout_shape = tuple([1] * (key.ndim - 2)) + attn_weights.shape[-2:]
+      keep = torch.rand(dropout_shape) < keep_prob
+    else:
+      keep = torch.rand(attn_weights.shape) < keep_prob
+    attn_weights *= keep.type(dtype) / torch.tensor([keep_prob], dtype=dtype)
+
+  return attn_weights
+
+
+def poly_norm(x: torch.Tensor, q=2) -> torch.Tensor:
+  def poly(x, c):
+    return 1 / (-x - c) ** q
+
+  def poly_sum(x, c):
+    return torch.sum(poly(x, c), dim=-1, keepdims=True)
+
+  def poly_sum_der(x, c):
+    return q * torch.sum(1 / (-x - c) ** (q + 1), dim=-1, keepdim=True)
+
+  c = torch.min(-x, dim=-1, keepdim=True) - 1
+  for _ in range(6):
+    c = c - (poly_sum(x, c) - 1) / (poly_sum_der(x, c) + 1e-8)
+  return poly(x, c)
