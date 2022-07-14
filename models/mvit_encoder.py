@@ -39,6 +39,9 @@ class Encoder(nn.Module):
     num_labels: int = 1,
     normalizer: str = "softmax",
   ):
+    self.img_dims = img_dims
+    self.patches_size = patches_size
+
     # Embedding patches is in fact a single convolution.
     fh, fw = patches_size
     assert fh == fw

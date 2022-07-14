@@ -16,13 +16,13 @@ class MViT(nn.Module):
 
     self.config = config
 
-    fh, fw = config.patches.size
+    fh = fw = config.patches.size
     if config.patches.init_type == Enums.InitPatches.random:
       h = w = 1
     else:
       h = config.dataset.input_size // fh
       w = config.dataset.input_size // fw
-    self.encoder = Encoder(
+    self.encoder_kwargs = dict(
       mlp_dim=config.model.mlp_dim,
       num_layers=config.model.num_layers,
       num_heads=config.model.num_attn_heads,
@@ -39,6 +39,7 @@ class MViT(nn.Module):
       num_labels=config.dataset.num_labels,
       normalizer=config.model.normalizer,
     )
+    self.encoder = Encoder(**self.encoder_kwargs)
 
     self.locscale_dim = 3 if config.model.learn_scale else 2
 

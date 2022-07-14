@@ -81,6 +81,8 @@ class ModelConfig:
   min_num_patches = 0  # Whether to consider only the first random(low=min_num_patches, high=num_patches) patches in the second pass. Consider all patches when 0
   use_first_pass = False  # Whether to reuse the "columns" from the first pass in the second one.
 
+  autoreg_passes: int = None
+
 
 @dataclass
 class PatchesConfig:
