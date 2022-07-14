@@ -8,6 +8,7 @@ from torch.nn.parameter import Parameter
 
 from config import Config, Enums
 from models.mvit_encoder import Encoder
+from models.metrics import _logprob
 
 from .mvit import Classifier, MViT
 
@@ -116,6 +117,7 @@ class MViTPolicy(MViT):
     # All possible patches. Used to create heatmap and select next patch
     all_patches = self._get_all_patches(inputs)
     locscale_embeds = self._get_locscale_embeds_for_score(all_patches)
+
     if self.training:
       epsilon = random.choice([0, 0.2, 0.4, 0.6, 0.8, 1.0])
     else:
@@ -220,6 +222,53 @@ class MViTPolicy(MViT):
       (all_candidates, heatmap_scores, all_patches),
       logits2,
     )
+
+  def training_step(self, inputs: torch.Tensor, labels: torch.Tensor, args):
+    all_logits, selected_logits, scores, _, _, logits2 = self.forward(
+      inputs,
+      #mutable=["batch_stats"],
+      debug=getattr(args, "debug", None),
+      loss_eval=getattr(args, "loss_eval", None),
+    )
+
+    one_hot_targets = F.one_hot(labels, all_logits.shape[-1])
+    log_probs = _logprob(all_logits)
+    # n: batch size
+    # p: num of autoreg passes
+    # q: num of candidates
+    preds = torch.einsum("npqi,ni->npq", log_probs, one_hot_targets)
+    # Cross-entropy loss on all prefixes and possible extensions
+    full_loss = torch.mean(-preds) - torch.mean(torch.einsum("ni,ni->n", _logprob(selected_logits[:, 0]), one_hot_targets))
+    # Cross-entropy for second transformer
+    full_loss -= torch.mean(torch.einsum("ni,ni->n", _logprob(logits2), one_hot_targets))
+
+    metrics = []
+    for idx in range(self.config.model.autoreg_passes + 1):
+      metric = self.metric_fn(selected_logits[:, idx], inputs, labels)
+      metrics.append(metric)
+    # Add metric for second transformer
+    metric = self.metric_fn(logits2, inputs, labels)
+    metrics.append(metric)
+
+    scores_mat = torch.unsqueeze(scores, dim=3) - torch.unsqueeze(scores, dim=2)
+    if self.config.training.loss == Enums.Losses.l2:
+      pred_mat = (torch.unsqueeze(preds, dim=3) - torch.unsqueeze(preds, dim=2)).detach()
+      score_loss = torch.mean((scores_mat - pred_mat) ** 2)
+    else:
+      pred_mat = (torch.sign(torch.unsqueeze(preds, dim=3) - torch.unsqueeze(preds, dim=2))).detach()
+
+      # Margin loss
+      if self.config.training.loss == Enums.Losses.margin:
+        score_loss = torch.mean(F.relu(1 - pred_mat * scores_mat))
+      # # Softplus loss
+      elif self.config.training.loss == Enums.Losses.softplus:
+        score_loss = torch.mean(torch.log(1 + torch.exp(-pred_mat * scores_mat)))
+      else:
+        raise NotImplementedError()
+      # correc = nn.ReLU()(torch.sign(scores_mat * pred_mat))
+    full_loss += score_loss
+    full_loss += 0.01 * torch.mean(scores**2)
+    metrics.append(dict(score_loss=(score_loss, 1)))
 
 
 def merge_patches_info(

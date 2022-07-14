@@ -20,6 +20,8 @@ class Enums:
 
   class Losses(SimpleEnum):
     margin: str
+    softplus: str
+    l2: str
 
   class TrainerNames(SimpleEnum):
     policy_trainer: str

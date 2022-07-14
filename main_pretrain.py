@@ -21,7 +21,7 @@ import torch.backends.cudnn as cudnn
 from torch.utils.tensorboard import SummaryWriter
 
 import timm
-from config import build_config
+from config import Config, build_config
 
 from datasets.datasets import build_dataset
 
@@ -108,6 +108,17 @@ def get_args_parser():
     return parser
 
 
+
+def get_optimizer(config: Config, parameters):
+    name = config.optimizer.name.lower()
+    if name == "adamw":
+        return torch.optim.AdamW(parameters, lr=config.learning_rate.base_lr, betas=(config.optimizer.beta1, config.optimizer.beta2))
+    elif name == "adam":
+        return torch.optim.Adam(parameters, lr=config.learning_rate.base_lr, betas=(config.optimizer.beta1, config.optimizer.beta2))
+    else:
+        raise NotImplementedError(name)
+
+
 def main(args):
     misc.init_distributed_mode(args)
 
@@ -178,11 +189,12 @@ def main(args):
     
     # following timm: set wd as 0 for bias and norm layers
     param_groups = optim_factory.add_weight_decay(model_without_ddp, args.weight_decay)
-    optimizer = torch.optim.AdamW(param_groups, lr=args.lr, betas=(0.9, 0.95))
+    optimizer = get_optimizer(config, param_groups)
     print(optimizer)
     loss_scaler = NativeScaler()
 
-    misc.load_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler)
+    if args.resume:
+        misc.load_model(args=args, model_without_ddp=model_without_ddp, optimizer=optimizer, loss_scaler=loss_scaler)
 
     print(f"Start training for {args.epochs} epochs")
     start_time = time.time()

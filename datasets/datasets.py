@@ -21,7 +21,7 @@ def build_dataset(is_train, args, augmentations="full"):
     root = os.path.join(args.data_path, 'train' if is_train else 'val')
 
     if getattr(args, "dataset"):
-        name = args.dataset
+        name = args.dataset.lower()
         if name == "mnist":
             dataset = datasets.MNIST(
                 root=root,

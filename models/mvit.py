@@ -2,12 +2,14 @@
 import torch
 import torch.nn as nn
 
+from .classifier import ClassifierModel
 from .mvit_encoder import Encoder
+
 from config import Config, Enums
 from utils.patches import PatchExtractor, select_patches
 
 
-class MViT(nn.Module):
+class MViT(ClassifierModel):
   """
   Main model.
   Does two passes, extracts patches between the first and the second.
@@ -15,6 +17,7 @@ class MViT(nn.Module):
   def __init__(self, config: Config):
 
     self.config = config
+    self.metric_fn = self.get_metrics_fn()
 
     fh = fw = config.patches.size
     if config.patches.init_type == Enums.InitPatches.random:
