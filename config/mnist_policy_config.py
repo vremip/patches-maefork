@@ -38,9 +38,9 @@ def get_config(runlocal: bool):
   config.repulsion_weight = 0.0
   config.model.stochastic = None
   config.model.init_var = 0.01
-  config.model.noise_type = 0  # 0 for gaussian, 1 for uniform
+  config.model.noise_type = Enums.NoiseTypes.gaussian
   config.model.pen_type = 0  # 0 for kld, 1 for ent
-  config.model.patch_transform = True  # 0 for kld, 1 for ent
+  config.model.patch_transform = Enums.PatchTransforms.ent
   config.model.epsilon = 0.5  # How many times are we looking at the best patch vs a random patch
 
   return config

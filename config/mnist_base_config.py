@@ -1,5 +1,5 @@
 
-from . import Config
+from . import Config, Enums
 
 _MNIST_TRAIN_SIZE = 60000
 
@@ -34,6 +34,7 @@ def get_base_config(runlocal: bool, version: str):
   config.rng_seed = 42
 
   config.dataset.name = "mnist"
+  config.dataset.num_classes = 10
 
   config.model.batch_size = 8 if runlocal else 128
   config.model.hidden_size = HIDDEN_SIZE[version]
@@ -44,7 +45,7 @@ def get_base_config(runlocal: bool, version: str):
 
   # Size of the MLP hidden layer used for classication
   config.model.representation_size = None
-  config.model.classifier = "token"
+  config.model.classifier = Enums.ClassifierTypes.token
   config.model.attention_dropout_rate = 0.0
   config.model.dropout_rate = 0.1
 

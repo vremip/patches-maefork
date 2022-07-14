@@ -21,7 +21,6 @@ class PatchExtractor:
     self,
     config: Config,
     num_patches: int,
-    max_scale_mult: float = 1.,
     stochastic: bool = False,
   ):
     self.config = config
@@ -29,7 +28,7 @@ class PatchExtractor:
     # Number of masks / patches extracted
     self.num_patches = num_patches
     # Float defining the scale range: [1, 1 + max_scale_mult]
-    self.max_scale_mult = max_scale_mult
+    self.max_scale_mult = config.patches.max_scale_mult
     self.stochastic = stochastic
     self.setup()
 
