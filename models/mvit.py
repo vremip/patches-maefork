@@ -256,6 +256,29 @@ class MViT(nn.Module):
       logits = self.classifier(emb_patches[:, -1])
     return logits, emb_patches, embeddings
 
+  def _get_all_patches(self, inputs: torch.Tensor):
+    """ (Originally from MViTExtension)"""
+    return PatchExtractor(
+      self.config,
+      num_patches=self.config.dataset.input_size ** 2,
+      type_init_patches=Enums.InitPatches.exhaustive,
+    )(inputs)
+
+  def _get_fixed_patches(self, inputs: torch.Tensor):
+    """ (Originally from MViTExtension)"""
+    # Manual positions that "make sense"
+    x_pos = torch.tensor([[[-0.26], [0.24], [-0.26]]])
+    x_pos = torch.tile(x_pos, (inputs.shape[0], 1, 1))
+    y_pos = torch.tensor([[[0.24], [-0.37], [-0.37]]])
+    y_pos = torch.tile(y_pos, (inputs.shape[0], 1, 1))
+    scale = torch.tensor([[[1], [1], [1]]])
+    scale = torch.tile(scale, (inputs.shape[0], 1, 1))
+
+    return PatchExtractor(
+      self.config,
+      num_patches=3,
+    )(inputs, x_pos=x_pos, y_pos=y_pos, scale=scale)
+
   def forward(self, inputs: torch.Tensor, *, debug: bool = False):
 
     init_patches_info = self._get_init_patches(inputs)

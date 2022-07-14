@@ -22,6 +22,7 @@ class PatchExtractor:
     config: Config,
     num_patches: int,
     stochastic: bool = False,
+    type_init_patches: str = None
   ):
     self.config = config
 
@@ -30,6 +31,7 @@ class PatchExtractor:
     # Float defining the scale range: [1, 1 + max_scale_mult]
     self.max_scale_mult = config.patches.max_scale_mult
     self.stochastic = stochastic
+    self.type_init_patches = type_init_patches or self.config.patches.init_type
     self.setup()
 
   def setup(self):
@@ -55,7 +57,7 @@ class PatchExtractor:
     )
 
     self.x_pos, self.y_pos = None, None
-    if self.config.patches.init_type in (Enums.InitPatches.grid_conv, Enums.InitPatches.grid_mod):
+    if self.type_init_patches in (Enums.InitPatches.grid_conv, Enums.InitPatches.grid_mod):
       h, w = (
         self.config.dataset.input_size // self.config.patches.size,
         self.config.dataset.input_size // self.config.patches.size,
@@ -70,7 +72,7 @@ class PatchExtractor:
       self.y_pos = torch.tile(self.y_pos, (1, 1, w, 1))
       self.y_pos = torch.reshape(self.y_pos, (1, -1, 1))
 
-    elif self.config.patches.init_type is Enums.InitPatches.exhaustive:
+    elif self.type_init_patches is Enums.InitPatches.exhaustive:
       # Use the full mesh on the image and transform it appropriately.
       self.x_pos = torch.reshape(self.create_grid(self.config.dataset.input_size), (1, 1, -1, 1))
       self.x_pos = torch.tile(self.x_pos, (1, self.config.dataset.input_size, 1, 1))
@@ -92,7 +94,7 @@ class PatchExtractor:
     """
     bs = template.shape[0]
 
-    if self.config.patches.init_type is Enums.InitPatches.random:
+    if self.type_init_patches is Enums.InitPatches.random:
       x_pos = torch.rand_like(template) * 2. - 1.
       y_pos = torch.rand_like(template) * 2. - 1.
       scale = torch.rand_like(template)
@@ -101,10 +103,10 @@ class PatchExtractor:
     x_pos = torch.tile(self.x_pos, (bs, 1, 1))
     y_pos = torch.tile(self.y_pos, (bs, 1, 1))
 
-    if self.config.patches.init_type is Enums.InitPatches.exhaustive:
+    if self.type_init_patches is Enums.InitPatches.exhaustive:
       # Return patches at each pixel location
       scale = torch.zeros_like(x_pos) + 0.5
-    elif self.config.patches.init_type is Enums.InitPatches.grid_conv:
+    elif self.type_init_patches is Enums.InitPatches.grid_conv:
       scale = torch.zeros_like(x_pos)
     else:
       x_pos += 2 / self.config.dataset.input_size * torch.rand_like(template) * 2. - 1.
