@@ -21,7 +21,7 @@ import torch.distributed as dist
 from torch._six import inf
 
 
-class SmoothedValue(object):
+class SmoothedValue:
     """Track a series of values and provide access to smoothed values over a
     window or the global series average.
     """
@@ -83,7 +83,7 @@ class SmoothedValue(object):
             value=self.value)
 
 
-class MetricLogger(object):
+class MetricLogger:
     def __init__(self, delimiter="\t"):
         self.meters = defaultdict(SmoothedValue)
         self.delimiter = delimiter

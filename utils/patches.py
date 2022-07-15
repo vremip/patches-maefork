@@ -66,9 +66,7 @@ class PatchExtractor:
       self.x_pos = torch.reshape(self.create_grid(w), (1, 1, -1, 1))
       self.x_pos = torch.tile(self.x_pos, (1, h, 1, 1))
       self.x_pos = torch.reshape(self.x_pos, (1, -1, 1))
-      self.y_pos = torch.transpose(
-        torch.reshape(self.create_grid(h), (1, 1, -1, 1)), (0, 2, 1, 3)
-      )
+      self.y_pos = torch.reshape(self.create_grid(h), (1, 1, -1, 1)).permute(0, 2, 1, 3)
       self.y_pos = torch.tile(self.y_pos, (1, 1, w, 1))
       self.y_pos = torch.reshape(self.y_pos, (1, -1, 1))
 
@@ -77,9 +75,7 @@ class PatchExtractor:
       self.x_pos = torch.reshape(self.create_grid(self.config.dataset.input_size), (1, 1, -1, 1))
       self.x_pos = torch.tile(self.x_pos, (1, self.config.dataset.input_size, 1, 1))
       self.x_pos = torch.reshape(self.x_pos, (1, -1, 1))
-      self.y_pos = torch.transpose(
-        torch.reshape(self.create_grid(self.config.dataset.input_size), (1, 1, -1, 1)), (0, 2, 1, 3)
-      )
+      self.y_pos = torch.reshape(self.create_grid(self.config.dataset.input_size), (1, 1, -1, 1)).permute(0, 2, 1, 3)
       self.y_pos = torch.tile(self.y_pos, (1, 1, self.config.dataset.input_size, 1))
       self.y_pos = torch.reshape(self.y_pos, (1, -1, 1))
 

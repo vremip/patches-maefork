@@ -16,6 +16,7 @@ class MViT(ClassifierModel):
   Does two passes, extracts patches between the first and the second.
   """
   def __init__(self, config: Config, args: Namespace):
+    super().__init__()
 
     self.config = config
     self.metric_fn = self.get_metrics_fn()
@@ -31,8 +32,8 @@ class MViT(ClassifierModel):
       num_layers=config.model.num_layers,
       num_heads=config.model.num_attn_heads,
       num_patches=config.patches.num_patches if config.misc.per_patch_token else 1,
-      img_dims=[h, w],
-      patches_size=[fh, fw],
+      img_dims=(h, w),
+      patches_size=(fh, fw),
       dropout_rate=config.model.dropout_rate,
       attention_dropout_rate=config.model.attention_dropout_rate,
       stochastic_depth=config.misc.stochastic_depth,
@@ -344,6 +345,8 @@ class Classifier(nn.Module):
   representation_size gives the dim of the hidden layer of the mlp is passed, otherwise linear transform
   """
   def __init__(self, representation_size: int, num_classes: int, output_projection: nn.Module):
+    super().__init__()
+
     if representation_size is not None:
       self.layers = nn.Sequential(
         nn.Linear(1, representation_size),
@@ -367,6 +370,8 @@ class LocScaleExtractor(nn.Module):
     stochastic: bool = False,
     learn_scale: bool = False,
   ):
+    super().__init__()
+
     # Mean and variance of patch parameters when stochastic
     output_mult = 2 if stochastic is not None else 1
 
@@ -397,6 +402,8 @@ class PredictorFromLocScale(nn.Module):
   """
 
   def __init__(self, num_classes: int, hidden_size: int = 96):
+    super().__init__()
+
     self.layers = nn.Sequential(
       nn.Linear(1, hidden_size),
       nn.ReLU(),

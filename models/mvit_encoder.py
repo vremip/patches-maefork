@@ -1,5 +1,7 @@
+import math
 from functools import partial
 from typing import Any, Callable, Dict, Optional, Tuple
+
 import torch
 import torch.nn as nn
 
@@ -171,6 +173,8 @@ class Encoder1DBlock(nn.Module):
     stochastic_depth: float = 0.0,
     normalizer: str = "softmax",
   ):
+    super().__init__()
+
     self.stochastic_depth = stochastic_depth
 
     # Attention block
@@ -232,8 +236,8 @@ class Encoder1DBlockWithFixedTokens(Encoder1DBlock):
   """
 
   def __init__(self, *args, **kwargs):
+    super().__init__(*args, **kwargs)
     self.layer_norm_kv = nn.LayerNorm(dtype=kwargs.get('dtype'))
-    super().__(*args, **kwargs)
 
   def forward(
     self, inputs: torch.Tensor, extra_keys: torch.Tensor = None
@@ -271,6 +275,7 @@ class AttentionLayers:
       activation_fn: Callable[[torch.Tensor], torch.Tensor] = None,
       dtype: torch.Tensor = torch.float32,
     ):
+      super().__init__()
       out_dim = out_dim or 1   # TODO
       
       self.linear1 = nn.Linear(1, mlp_dim, dtype=dtype)
@@ -300,12 +305,11 @@ class AddPositionEmbs(nn.Module):
 
   Attributes:
     posemb_init: Positional embedding initializer.
-
-  Returns:
-    Output in shape `[bs, timesteps, in_dim]`.
   """
 
   def __init__(self, hidden_size: int, img_dims: Tuple[int, int]):
+    super().__init__()
+
     min_rescale = 0.1
     max_rescale = 10.0
   
@@ -313,24 +317,25 @@ class AddPositionEmbs(nn.Module):
     n_scales = hidden_size // 4
 
     self.rescales = torch.reshape(
-      torch.logspace(torch.log10(min_rescale), torch.log10(max_rescale), n_scales),
+      torch.logspace(math.log10(min_rescale), math.log10(max_rescale), n_scales),
       (1, 1, n_scales),
     )
 
     # Use the basic mesh on the image and transform it appropriately.
     # Compute this once during setup for reuse
-    x_grid_features = self._sincos_1d(
-      torch.reshape(PatchExtractor.create_grid(img_dims[1]), (1, -1, 1))
-    )
+
+    x_grid_features = torch.reshape(PatchExtractor.create_grid(img_dims[1]), (1, -1, 1))
+    y_grid_features = torch.reshape(PatchExtractor.create_grid(img_dims[0]), (1, -1, 1))
+
+    x_grid_features = self._sincos_1d(torch.tile(x_grid_features, (1, 1, n_scales)))
+    y_grid_features = self._sincos_1d(torch.tile(y_grid_features, (1, 1, n_scales)))
+    y_grid_features = y_grid_features.permute(1, 0, 2)
+
     x_grid_features = torch.tile(x_grid_features, (img_dims[0], 1, 1))
-    y_grid_features = torch.transpose(
-      self._sincos_1d(torch.reshape(PatchExtractor.create_grid(img_dims[0]), (1, -1, 1))), (1, 0, 2)
-    )
     y_grid_features = torch.tile(y_grid_features, (1, img_dims[1], 1))
+
     self.pos_embs = torch.cat((y_grid_features, x_grid_features), dim=-1)
-    self.pos_embs = torch.reshape(
-      self.pos_embs, (1, img_dims[0] * img_dims[1], hidden_size)
-    )
+    self.pos_embs = torch.reshape(self.pos_embs, (1, img_dims[0] * img_dims[1], hidden_size))
 
     self.layers = nn.Sequential(
       nn.Linear(1, hidden_size),
@@ -348,11 +353,11 @@ class AddPositionEmbs(nn.Module):
     Input:
       x: (n_batch, num_patches, 1)
     Output:
-      x: (n_batch, num_patches, self.hidden_size / 2)  # sin+cos features
+      x: (n_batch, num_patches, self.hidden_size // 2)  # sin+cos features
     """
     # x *= (1 + scale)
     x *= self.rescales
-    x = torch.cat([torch.sin(x), torch.cos(x)], axis=2)
+    x = torch.cat([torch.sin(x), torch.cos(x)], dim=2)
     return x
 
   def _sincos_features(self, patches_info: Dict):
@@ -373,6 +378,10 @@ class AddPositionEmbs(nn.Module):
   def forward(
     self, inputs: torch.Tensor, patches_info: Dict[str, torch.Tensor] = None
   ) -> torch.Tensor:
+    """
+    Returns:
+      Output in shape [bs, timesteps, in_dim]
+    """
     # Inputs.shape is (batch_size, num patches, emb_dim).
     assert inputs.ndim == 3, "Number of dimensions should be 3, got: %d" % inputs.ndim
 
@@ -422,6 +431,7 @@ class MultiHeadDotProductAttention(nn.Module):
     use_bias: bool = True,
     normalizer: str = "softmax",
   ):
+    super().__init__()
 
     features = out_features  # or inputs_q.shape[-1]
     qkv_features = qkv_features  # or inputs_q.shape[-1]
