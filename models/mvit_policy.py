@@ -22,9 +22,8 @@ class MViTPolicy(MViT):
     super().__init__(config, args)
 
     # Trainable vector from which the first loc and scale are extracted
-    shape = (1, 1) if config.misc.per_patch_token else (1,)
-    self.emb_patches = Parameter(torch.randn(shape + (config.model.hidden_size,), dtype=config.model.dtype))
-    self.emb_patches = torch.tile(self.emb_patches, (config.model.batch_size,) + shape)  # bs x d (self.hidden_size)
+    self.shape = (1, 1) if config.misc.per_patch_token else (1,)
+    self.emb_patches = Parameter(torch.randn(self.shape + (config.model.hidden_size,), dtype=config.model.dtype))
 
     self.locscale_embeds = nn.Sequential(
       nn.Linear(7, config.model.hidden_size),
@@ -99,7 +98,8 @@ class MViTPolicy(MViT):
     batch_size = inputs.shape[0]
 
     # Get "output tokens" pertaining to locscale
-    locscale_embeds = self._get_locscale_embeds(self.emb_patches, extract=False)
+    emb_patches = torch.tile(self.emb_patches, (batch_size, *self.shape))  # bs x d (self.hidden_size)
+    locscale_embeds = self._get_locscale_embeds(emb_patches, extract=False)
     locscale_params = self.locscale_extractor(locscale_embeds)
     patches, _ = self._extract_patches(inputs, locscale_params)
     # Process first patch

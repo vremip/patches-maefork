@@ -90,7 +90,7 @@ class Encoder(nn.Module):
         hidden_size=hidden_size,
       ) for lyr in range(num_layers)
     ))
-    self.layer_norm = nn.LayerNorm()
+    self.layer_norm = nn.LayerNorm((7, 7),)
 
   def forward(
     self,
@@ -179,7 +179,7 @@ class Encoder1DBlock(nn.Module):
     self.stochastic_depth = stochastic_depth
 
     # Attention block
-    self.layer_norm1 = nn.LayerNorm(dtype=dtype)
+    self.layer_norm1 = nn.LayerNorm((7, 7), dtype=dtype)
     self.multi_head_dot_prod_attn = MultiHeadDotProductAttention(
         num_heads=num_heads,
         dtype=dtype,
@@ -192,7 +192,7 @@ class Encoder1DBlock(nn.Module):
     self.dropout = nn.Dropout(dropout_rate)
 
     # MLP block
-    self.layer_norm2 = nn.LayerNorm(dtype=dtype)
+    self.layer_norm2 = nn.LayerNorm((7, 7), dtype=dtype)
     self.mlp_block = AttentionLayers.MlpBlock(
       mlp_dim=mlp_dim,
       dtype=dtype,
@@ -238,7 +238,7 @@ class Encoder1DBlockWithFixedTokens(Encoder1DBlock):
 
   def __init__(self, *args, **kwargs):
     super().__init__(*args, **kwargs)
-    self.layer_norm_kv = nn.LayerNorm(dtype=kwargs.get('dtype'))
+    self.layer_norm_kv = nn.LayerNorm((7, 7), dtype=kwargs.get('dtype'))
 
   def forward(
     self, inputs: torch.Tensor, extra_keys: torch.Tensor = None
@@ -283,7 +283,7 @@ class AttentionLayers:
       self.linear2 = nn.Linear(mlp_dim, out_dim, dtype=dtype)
       self.layers = nn.Sequential(
         self.linear1,
-        activation_fn or nn.GELU,
+        activation_fn or nn.GELU(),
         nn.Dropout(dropout_rate),
         self.linear2,
         nn.Dropout(dropout_rate),
@@ -442,9 +442,9 @@ class MultiHeadDotProductAttention(nn.Module):
     self.linear_query = nn.Linear(1, num_heads * self.head_dim, bias=use_bias)
     self.linear_key = nn.Linear(1, num_heads * self.head_dim, bias=use_bias)
     self.linear_value = nn.Linear(1, num_heads * self.head_dim, bias=use_bias)
-    nn.init.xavier_uniform_(self.linear_query)
-    nn.init.xavier_uniform_(self.linear_key)
-    nn.init.xavier_uniform_(self.linear_value)
+    init_weights(self.linear_query, nn.init.xavier_uniform_)
+    init_weights(self.linear_key, nn.init.xavier_uniform_)
+    init_weights(self.linear_value, nn.init.xavier_uniform_)
 
     self.dot_product_attention = partial(
       dot_product_attention,
@@ -455,7 +455,7 @@ class MultiHeadDotProductAttention(nn.Module):
     )
 
     self.linear_out = nn.Linear(1, features, bias=use_bias)
-    nn.init.xavier_uniform_(self.linear_out)
+    init_weights(self.linear_out, nn.init.xavier_uniform_)
     #DenseGeneral(
     #  features=features,
     #  axis=(-2, -1),
