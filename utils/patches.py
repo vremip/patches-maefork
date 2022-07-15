@@ -111,7 +111,7 @@ class PatchExtractor:
 
     return x_pos, y_pos, scale
 
-  def forward(
+  def __call__(
     self,
     inputs: torch.Tensor,
     x_pos: torch.Tensor = None,
@@ -127,9 +127,9 @@ class PatchExtractor:
     # Batch size, height = self.img_dims[0], width = self.img_dims[1], channel s
     n, _, _, _ = inputs.shape
 
-    x_pos = x_pos or torch.zeros()
-    y_pos = y_pos or torch.zeros()
-    scale = scale or torch.zeros()
+    x_pos = x_pos if x_pos is not None else torch.zeros()
+    y_pos = y_pos if y_pos is not None else torch.zeros()
+    scale = scale if scale is not None else torch.zeros()
 
     if not len(x_pos.shape):
       template = torch.zeros((n, self.num_patches, 1))
