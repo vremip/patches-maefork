@@ -24,6 +24,7 @@ import timm
 from config import Config, build_config
 
 from datasets.datasets import build_dataset
+from models import MODELS
 
 assert timm.__version__ == "0.3.2"  # version check
 import timm.optim.optim_factory as optim_factory
@@ -31,14 +32,12 @@ import timm.optim.optim_factory as optim_factory
 import utils.misc as misc
 from utils.misc import NativeScalerWithGradNormCount as NativeScaler
 
-import models.models_mae as models_mae
-
 from engine_pretrain import train_one_epoch
 
 
 def get_args_parser():
     parser = argparse.ArgumentParser('MAE pre-training', add_help=False)
-    parser.add_argument('-c', 'config', default="default", type=str)
+    parser.add_argument('-c', '--config', default="default", type=str)
     parser.add_argument('--batch-size', default=64, type=int,
                         help='Batch size per GPU (effective batch size is batch_size * accum_iter * # gpus')
     parser.add_argument('--epochs', default=400, type=int)
@@ -46,8 +45,7 @@ def get_args_parser():
                         help='Accumulate gradient iterations (for increasing the effective batch size under memory constraints)')
 
     # Model parameters
-    parser.add_argument('--model', default='mae_vit_large_patch16', type=str, metavar='MODEL',
-                        help='Name of model to train')
+    parser.add_argument('--model', type=str, metavar='MODEL', help='Name of model to train')
 
     parser.add_argument('--input-size', default=224, type=int,
                         help='images input size')
@@ -108,7 +106,6 @@ def get_args_parser():
     return parser
 
 
-
 def get_optimizer(config: Config, parameters):
     name = config.optimizer.name.lower()
     if name == "adamw":
@@ -119,7 +116,7 @@ def get_optimizer(config: Config, parameters):
         raise NotImplementedError(name)
 
 
-def main(args):
+def main(args: argparse.Namespace):
     misc.init_distributed_mode(args)
 
     config = build_config(args)
@@ -160,13 +157,7 @@ def main(args):
     )
     
     # define the model
-    model = models_mae.__dict__[args.model](
-        img_size=config.dataset.input_size,
-        in_chans=config.dataset.input_channels,
-        patch_size=config.patches.size,
-        norm_pix_loss=args.norm_pix_loss,
-    )
-
+    model = MODELS[config.model.type](config, args)
     model.to(config.device)
 
     model_without_ddp = model

@@ -52,6 +52,11 @@ class Datasetconfig:
 
 
 @dataclass
+class ModelMaevitConfig:
+  norm_pix_loss: bool = False
+
+
+@dataclass
 class ModelConfig:
   name: str = None
   type: str = None
@@ -84,6 +89,8 @@ class ModelConfig:
   use_first_pass = False  # Whether to reuse the "columns" from the first pass in the second one.
 
   autoreg_passes: int = None
+
+  maevit = ModelMaevitConfig()
 
 
 @dataclass
@@ -174,7 +181,7 @@ def build_config(args: Namespace):
     config = Config()
   else:
     if config_file == "mnist_policy":
-      from mnist_policy_config import get_config
+      from .mnist_policy_config import get_config
 
     else:
       raise NotImplementedError(config_file)
@@ -184,15 +191,18 @@ def build_config(args: Namespace):
 
   if getattr(args, "device"):
     config.device = torch.device(args.device)
-
   if getattr(args, "dataset"):
     config.dataset.name = args.dataset
     
     if args.dataset == "mnist":
       config.dataset.input_size = 28
       config.dataset.input_channels = 1
-  
+
   if getattr(args, "patch_size"):
     config.patches.size = args.patch_size
+  if getattr(args, "model"):
+    config.model.type = args.model
+  if getattr(args, "norm_pix_loss"):
+    config.model.maevit.norm_pix_loss = args.norm_pix_loss
 
   return config

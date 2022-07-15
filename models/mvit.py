@@ -1,4 +1,5 @@
 
+from argparse import Namespace
 import torch
 import torch.nn as nn
 
@@ -14,7 +15,7 @@ class MViT(ClassifierModel):
   Main model.
   Does two passes, extracts patches between the first and the second.
   """
-  def __init__(self, config: Config):
+  def __init__(self, config: Config, args: Namespace):
 
     self.config = config
     self.metric_fn = self.get_metrics_fn()

@@ -1,4 +1,5 @@
 import random
+from argparse import Namespace
 from typing import Dict
 
 import torch
@@ -16,8 +17,8 @@ from .mvit import Classifier, MViT
 class MViTPolicy(MViT):
   """Learn a policy extracting patches based on their scores."""
 
-  def __init__(self, config: Config):
-    super().__init__(self, config)
+  def __init__(self, config: Config, args: Namespace):
+    super().__init__(config, args)
 
     # Trainable vector from which the first loc and scale are extracted
     shape = (1, 1) if config.misc.per_patch_token else (1,)

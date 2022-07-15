@@ -39,6 +39,7 @@ class Encoder(nn.Module):
     num_labels: int = 1,
     normalizer: str = "softmax",
   ):
+    super().__init__()
     self.img_dims = img_dims
     self.patches_size = patches_size
 

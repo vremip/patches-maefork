@@ -1,6 +1,6 @@
 
 from . import Enums
-from mnist_base_config import get_base_config
+from .mnist_base_config import get_base_config
 
 
 VARIANT = ["mnist_large", "mnist2", "mnist3", "mnist4"][1]
@@ -24,7 +24,7 @@ def get_config(runlocal: bool):
   # config.model.num_layers = max(config.model.num_layers, 8)
   config.model.normalizer = "softmax"
 
-  config.model.name = "mvit_classification"
+  config.model.name = "mvit_classification"  # TODO: unused
   config.model.type = Enums.ModelTypes.mvit_policy
   config.training.loss = Enums.Losses.margin
   config.training.trainer_name = Enums.TrainerNames.policy_trainer
