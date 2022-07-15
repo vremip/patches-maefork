@@ -1,7 +1,10 @@
 
 from argparse import Namespace
+from functools import partial
 import torch
 import torch.nn as nn
+
+from models.weights import init_weights
 
 from .classifier import ClassifierModel
 from .mvit_encoder import Encoder
@@ -56,8 +59,8 @@ class MViT(ClassifierModel):
       learn_scale=self.config.model.learn_scale,
     )
 
-    output_projection = torch.nn.Linear(1, config.dataset.num_classes)
-    torch.nn.init.zeros_(output_projection)
+    output_projection = torch.nn.Linear(7, config.dataset.num_classes)
+    init_weights(output_projection, torch.nn.init.zeros_)
 
     self.classifier = Classifier(
       representation_size=config.model.representation_size,
@@ -385,8 +388,7 @@ class LocScaleExtractor(nn.Module):
       )
     else:
       self.layers = torch.nn.Linear(hidden_size, locscale_dim * output_mult)
-
-    torch.nn.init.normal_(self.layers, std=0.08)
+    init_weights(self.layers, partial(torch.nn.init.normal_, std=0.08))
 
   def forward(self, x: torch.Tensor):
     """
@@ -411,7 +413,7 @@ class PredictorFromLocScale(nn.Module):
       nn.ReLU(),
       nn.Linear(hidden_size, num_classes),
     )
-    torch.nn.init.xavier_uniform_(self.layers)
+    init_weights(self.layers, torch.nn.init.xavier_uniform_)
 
   def forward(self, loc_scale: torch.Tensor) -> torch.Tensor:
     """

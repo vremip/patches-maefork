@@ -5,6 +5,7 @@ from typing import Any, Callable, Dict, Optional, Tuple
 import torch
 import torch.nn as nn
 
+from models.weights import init_weights
 from utils.patches import PatchExtractor
 
 
@@ -278,7 +279,7 @@ class AttentionLayers:
       super().__init__()
       out_dim = out_dim or 1   # TODO
       
-      self.linear1 = nn.Linear(1, mlp_dim, dtype=dtype)
+      self.linear1 = nn.Linear(7, mlp_dim, dtype=dtype)
       self.linear2 = nn.Linear(mlp_dim, out_dim, dtype=dtype)
       self.layers = nn.Sequential(
         self.linear1,
@@ -290,10 +291,9 @@ class AttentionLayers:
       self.initialize()
   
     def initialize(self):
-      torch.nn.init.xavier_uniform_(self.linear1.weight)
-      torch.nn.init.xavier_uniform_(self.linear2.weight)
-      torch.nn.init.normal_(self.linear1.bias, std=1e-6)
-      torch.nn.init.normal_(self.linear2.bias, std=1e-6)
+      init_weights(self.linear1, torch.nn.init.xavier_uniform_, bias_init_method=partial(torch.nn.init.normal_, std=1e-6))
+      init_weights(self.linear2, torch.nn.init.xavier_uniform_, bias_init_method=partial(torch.nn.init.normal_, std=1e-6))
+
 
     def forward(self, inputs: torch.Tensor):
       """Applies Transformer MlpBlock module."""
@@ -338,13 +338,13 @@ class AddPositionEmbs(nn.Module):
     self.pos_embs = torch.reshape(self.pos_embs, (1, img_dims[0] * img_dims[1], hidden_size))
 
     self.layers = nn.Sequential(
-      nn.Linear(1, hidden_size),
+      nn.Linear(7, hidden_size),
       nn.ReLU(),
       nn.Linear(hidden_size, hidden_size),
       nn.ReLU(),
       nn.Linear(hidden_size, hidden_size),
     )
-    torch.nn.init.normal_(self.layers, std=0.02)  # From BERT.
+    init_weights(self.layers, partial(torch.nn.init.normal_, std=0.02))  # From BERT.
 
   def _sincos_1d(self, x, scale=1.0):
     """

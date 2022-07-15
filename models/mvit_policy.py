@@ -8,8 +8,9 @@ import torch.nn.functional as F
 from torch.nn.parameter import Parameter
 
 from config import Config, Enums
-from models.mvit_encoder import Encoder
 from models.metrics import _logprob
+from models.mvit_encoder import Encoder
+from models.weights import init_weights
 
 from .mvit import Classifier, MViT
 
@@ -30,13 +31,13 @@ class MViTPolicy(MViT):
       nn.ReLU(),
       nn.Linear(config.model.hidden_size, config.model.hidden_size),
     )
-    torch.nn.init.xavier_uniform_(self.locscale_embeds)
+    init_weights(self.locscale_embeds, torch.nn.init.xavier_uniform_)
 
-    self.prefix_embeds_mat = nn.Linear(7, config.model.hidden_size) 
-    torch.nn.init.xavier_uniform_(self.prefix_embeds_mat)
+    self.prefix_embeds_mat = nn.Linear(7, config.model.hidden_size)
+    init_weights(self.prefix_embeds_mat, torch.nn.init.xavier_uniform_)
 
-    output_projection = nn.Linear(7, config.dataset.num_classes)    
-    torch.nn.init.zeros_(output_projection)
+    output_projection = nn.Linear(7, config.dataset.num_classes)
+    init_weights(output_projection, torch.nn.init.zeros_)
 
     self.classifier2 = Classifier(
       representation_size=config.model.representation_size,

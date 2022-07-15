@@ -1,4 +1,8 @@
 
+from typing import Callable, Optional
+
+import torch
+
 from .models_mae import mae_vit_base_dec512d8b, mae_vit_huge_patch14_dec512d8b, mae_vit_large_patch16_dec512d8b
 from .mvit_policy import MViTPolicy
 
