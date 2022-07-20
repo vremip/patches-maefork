@@ -128,7 +128,7 @@ class MaskedAutoencoderViT(nn.Module):
         p, _ = self.patch_embed.patch_size
         h = w = int(x.shape[1]**.5)
         assert h * w == x.shape[1]
-        
+
         x = x.reshape(shape=(x.shape[0], h, w, p, p, 3))
         x = torch.einsum('nhwpqc->nchpwq', x)
         imgs = x.reshape(shape=(x.shape[0], 3, h * p, h * p))
@@ -213,7 +213,7 @@ class MaskedAutoencoderViT(nn.Module):
         """
         imgs: [N, C, H, W]
         pred: [N, L, ppC]
-        mask: [N, L], 0 is keep, 1 is remove, 
+        mask: [N, L], 0 is keep, 1 is remove,
         """
         target = self.patchify(imgs)
         if self.norm_pix_loss:
@@ -233,7 +233,7 @@ class MaskedAutoencoderViT(nn.Module):
         pred = self.forward_decoder(latent, ids_restore)  # [N, L, p*p*c]
         loss = self.forward_loss(imgs, pred, mask)
         return loss, pred, mask
-    
+
     def training_step(self, inputs, *, labels=None, args=None):
         return self.forward(inputs, args=args)
 
@@ -275,6 +275,34 @@ def mae_vit_huge_patch14_dec512d8b(config: Config, args: Namespace):
     config.model.maevit.decoder_depth = 8
     config.model.maevit.decoder_num_heads = 16
     config.model.maevit.mlp_ratio = 4
+    config.model.maevit.norm_layer = partial(nn.LayerNorm, eps=1e-6)
+
+    return MaskedAutoencoderViT(config, args)
+
+
+def mae_vit_small(config: Config, args: Namespace):
+    # TODO: move these in a config/mae_vit_base config file
+    config.model.maevit.embed_dim = 384
+    config.model.maevit.depth = 12
+    config.model.maevit.num_heads = 6
+    config.model.maevit.mlp_ratio = 4
+    config.model.maevit.decoder_embed_dim = 512
+    config.model.maevit.decoder_depth = 8
+    config.model.maevit.decoder_num_heads = 16
+    config.model.maevit.norm_layer = partial(nn.LayerNorm, eps=1e-6)
+
+    return MaskedAutoencoderViT(config, args)
+
+
+def mae_vit_tiny(config: Config, args: Namespace):
+    # TODO: move these in a config/mae_vit_base config file
+    config.model.maevit.embed_dim = 192
+    config.model.maevit.depth = 3
+    config.model.maevit.num_heads = 3
+    config.model.maevit.mlp_ratio = 4
+    config.model.maevit.decoder_embed_dim = 512
+    config.model.maevit.decoder_depth = 8
+    config.model.maevit.decoder_num_heads = 16
     config.model.maevit.norm_layer = partial(nn.LayerNorm, eps=1e-6)
 
     return MaskedAutoencoderViT(config, args)

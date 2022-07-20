@@ -94,6 +94,7 @@ def get_args_parser():
                         help='Pin CPU memory in DataLoader for more efficient (sometimes) transfer to GPU.')
     parser.add_argument('--no-pin-mem', action='store_false', dest='pin_mem')
     parser.set_defaults(pin_mem=True)
+    parser.add_argument('--ffcv-loader', action='store_true', dest='ffcv_loader')
 
     # distributed training parameters
     parser.add_argument('--world-size', default=1, type=int,
@@ -118,7 +119,6 @@ def get_optimizer(config: Config, parameters):
 
 def main(args: argparse.Namespace):
     misc.init_distributed_mode(args)
-
     config = build_config(args)
 
     print('job dir: {}'.format(os.path.dirname(os.path.realpath(__file__))))
@@ -130,32 +130,45 @@ def main(args: argparse.Namespace):
     np.random.seed(seed)
     cudnn.benchmark = True
 
-    dataset_train = build_dataset(is_train=True, args=args, augmentations="simple")
-
-    if True:  # args.distributed:
-        num_tasks = misc.get_world_size()
-        global_rank = misc.get_rank()
-        sampler_train = torch.utils.data.DistributedSampler(
-            dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=True
-        )
-        print("Sampler_train = %s" % str(sampler_train))
-    else:
-        sampler_train = torch.utils.data.RandomSampler(dataset_train)
-
+    global_rank = misc.get_rank()
     if global_rank == 0 and args.log_dir is not None:
         os.makedirs(args.log_dir, exist_ok=True)
         log_writer = SummaryWriter(log_dir=args.log_dir)
     else:
         log_writer = None
 
-    data_loader_train = torch.utils.data.DataLoader(
-        dataset_train, sampler=sampler_train,
-        batch_size=args.batch_size,
-        num_workers=args.num_workers,
-        pin_memory=args.pin_mem,
-        drop_last=True,
-    )
-    
+    if args.ffcv_loader:
+        from datasets.datasets import ffcv_loader
+
+        dataset_train = os.path.join(args.data_path, 'train_500_0.50_90.ffcv')
+        print(f'Loading ffcv dataset from {dataset_train}')
+        data_loader_train = ffcv_loader(
+            dataset_train,
+            batch_size=args.batch_size,
+            num_workers=args.num_workers,
+            train=True,
+            distributed=args.distributed
+        )
+    else:
+        dataset_train = build_dataset(is_train=True, args=args, augmentations="simple")
+
+        if args.distributed:
+            num_tasks = misc.get_world_size()
+            sampler_train = torch.utils.data.DistributedSampler(
+                dataset_train, num_replicas=num_tasks, rank=global_rank, shuffle=True
+            )
+            print("Sampler_train = %s" % str(sampler_train))
+        else:
+            sampler_train = torch.utils.data.RandomSampler(dataset_train)
+
+        data_loader_train = torch.utils.data.DataLoader(
+            dataset_train, sampler=sampler_train,
+            batch_size=args.batch_size,
+            num_workers=args.num_workers,
+            pin_memory=args.pin_mem,
+            drop_last=True,
+        )
+
     # define the model
     model = MODELS[config.model.type](config, args)
     model.to(config.device)
@@ -164,7 +177,7 @@ def main(args: argparse.Namespace):
     print("Model = %s" % str(model_without_ddp))
 
     eff_batch_size = args.batch_size * args.accum_iter * misc.get_world_size()
-    
+
     if args.lr is None:  # only base_lr is specified
         args.lr = args.blr * eff_batch_size / 256
 
@@ -177,7 +190,7 @@ def main(args: argparse.Namespace):
     if args.distributed:
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu], find_unused_parameters=True)
         model_without_ddp = model.module
-    
+
     # following timm: set wd as 0 for bias and norm layers
     param_groups = optim_factory.add_weight_decay(model_without_ddp, args.weight_decay)
     optimizer = get_optimizer(config, param_groups)
@@ -190,7 +203,7 @@ def main(args: argparse.Namespace):
     print(f"Start training for {args.epochs} epochs")
     start_time = time.time()
     for epoch in range(args.start_epoch, args.epochs):
-        if args.distributed:
+        if args.distributed and not args.ffcv_loader:
             data_loader_train.sampler.set_epoch(epoch)
         train_stats = train_one_epoch(
             model, data_loader_train,

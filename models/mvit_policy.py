@@ -189,7 +189,7 @@ class MViTPolicy(MViT):
       )
 
       logits = torch.reshape(logits, (batch_size, self.config.patches.num_patches_init + 1) + logits.shape[1:])  # order="F"
-      
+
       ### all_logits = jax.lax.dynamic_update_slice(all_logits, torch.unsqueeze(logits, dim=1), (0, pass_idx, 0, 0))
       all_logits[:, pass_idx] = torch.unsqueeze(logits, dim=1)
 

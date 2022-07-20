@@ -46,6 +46,8 @@ def train_one_epoch(model: torch.nn.Module,
 
         if 'cuda' in device.type:
             with torch.cuda.amp.autocast():
+                # loss, *_ = model(samples, labels=labels, args=args)
+                # Issue with DDP
                 loss, *_ = model.training_step(samples, labels=labels, args=args)
         else:
             loss, *_ = model.training_step(samples, labels=labels, args=args)
