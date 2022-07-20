@@ -163,7 +163,7 @@ def main(args: argparse.Namespace):
 
         data_loader_train = torch.utils.data.DataLoader(
             dataset_train, sampler=sampler_train,
-            batch_size=args.batch_size,
+            batch_size=config.model.batch_size,
             num_workers=args.num_workers,
             pin_memory=args.pin_mem,
             drop_last=True,
@@ -176,7 +176,7 @@ def main(args: argparse.Namespace):
     model_without_ddp = model
     print("Model = %s" % str(model_without_ddp))
 
-    eff_batch_size = args.batch_size * args.accum_iter * misc.get_world_size()
+    eff_batch_size = config.model.batch_size * args.accum_iter * misc.get_world_size()
 
     if args.lr is None:  # only base_lr is specified
         args.lr = args.blr * eff_batch_size / 256

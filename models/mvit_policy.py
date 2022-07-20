@@ -94,7 +94,7 @@ class MViTPolicy(MViT):
     # score_embeds = torch.einsum("npi,np->ni", patches_embeds, one_hot)
     # return new_patches, new_columns, new_logits, score_embeds
 
-  def forward(self, inputs: torch.Tensor, *, debug: bool = False, loss_eval: bool = False):
+  def forward(self, inputs: torch.Tensor, *, loss_eval: bool = False):
     batch_size = inputs.shape[0]
 
     # Get "output tokens" pertaining to locscale
@@ -229,7 +229,6 @@ class MViTPolicy(MViT):
     all_logits, selected_logits, scores, _, _, logits2 = self.forward(
       inputs,
       #mutable=["batch_stats"],
-      debug=getattr(args, "debug", None),
       loss_eval=getattr(args, "loss_eval", None),
     )
 

@@ -204,5 +204,7 @@ def build_config(args: Namespace):
     config.model.type = args.model
   if getattr(args, "norm_pix_loss"):
     config.model.maevit.norm_pix_loss = args.norm_pix_loss
+  if getattr(args, "batch_size"):
+    config.model.batch_size = args.batch_size
 
   return config

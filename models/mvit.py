@@ -380,7 +380,7 @@ class LocScaleExtractor(nn.Module):
 
     if not learn_scale:
       self.layers = torch.nn.Sequential(
-        torch.nn.Linear(1, hidden_size),  # TODO
+        torch.nn.Linear(hidden_size, hidden_size),
         torch.nn.ReLU(),
         # torch.nn.Linear(self.hidden_size, self.hidden_size),
         # torch.nn.ReLU(),
